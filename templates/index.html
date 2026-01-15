@@ -92,7 +92,8 @@
                                 <td class="col-name">{{ contact.name }}</td>
                                 <td class="col-response">
                                     {% if call %}
-                                    <select class="response-select has-response response-{{ call.response | lower }}" onchange="updateCall({{ call.id }}, this.value, this)">
+                                    <select class="response-select has-response response-{{ call.response | lower }}" onchange="updateCall({{ call.id }}, this.value, this, '{{ contact.name }}')">
+                                        <option value="">Select...</option>
                                         <option value="A" {% if call.response == 'A' %}selected{% endif %}>A</option>
                                         <option value="B" {% if call.response == 'B' %}selected{% endif %}>B</option>
                                         <option value="C" {% if call.response == 'C' %}selected{% endif %}>C</option>
@@ -331,6 +332,7 @@
                         if (selectEl) {
                             selectEl.classList.add('has-response', `response-${response.toLowerCase()}`);
                             selectEl.innerHTML = `
+                                <option value="">Select...</option>
                                 <option value="A" ${response === 'A' ? 'selected' : ''}>A</option>
                                 <option value="B" ${response === 'B' ? 'selected' : ''}>B</option>
                                 <option value="C" ${response === 'C' ? 'selected' : ''}>C</option>
@@ -338,7 +340,7 @@
                                 <option value="DNP" ${response === 'DNP' ? 'selected' : ''}>DNP</option>
                                 <option value="CATCHUP" ${response === 'CATCHUP' ? 'selected' : ''}>Catchup</option>
                             `;
-                            selectEl.onchange = function() { updateCall(data.call_id, this.value, this); };
+                            selectEl.onchange = function() { updateCall(data.call_id, this.value, this, name); };
                         }
                         
                         const actionCell = row.querySelector('.col-action');
@@ -355,8 +357,14 @@
             }
         }
 
-        async function updateCall(callId, response, selectEl) {
+        async function updateCall(callId, response, selectEl, contactName) {
             const oldResponse = selectEl.dataset.currentResponse || '';
+            
+            // If "Select..." is chosen, delete the call instead
+            if (!response) {
+                await deleteCall(callId, contactName);
+                return;
+            }
             
             try {
                 const res = await fetch('/update-call', {
