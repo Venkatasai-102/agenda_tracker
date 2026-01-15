@@ -6,7 +6,7 @@ A local web application to track daily call targets, manage contacts, and monito
 
 ### Daily Call Tracking
 - **Set Daily Targets**: Define how many successful calls you want to make each day
-- **Track Responses**: Log call responses as A, B, C, N/A, or DNP (Didn't Pick Phone)
+- **Track Responses**: Log call responses as A, B, C, N/A, DNP (Didn't Pick Phone), or Catchup
 - **Progress Bar**: Visual indicator showing progress towards daily target
 - **Encouraging Messages**: Motivational messages based on response type and progress
 
@@ -79,7 +79,7 @@ agenda_tracker/
 **calls**
 - `id` (INTEGER, PRIMARY KEY)
 - `name` (TEXT) - Contact name
-- `response` (TEXT) - One of: A, B, C, NA, DNP
+- `response` (TEXT) - One of: A, B, C, NA, DNP, CATCHUP
 - `date` (TEXT) - Call date
 - `created_at` (TIMESTAMP) - Creation timestamp
 
@@ -150,6 +150,7 @@ agenda_tracker/
    - **A, B, C**: Successful calls (counts towards target)
    - **N/A**: Not applicable
    - **DNP**: Didn't Pick Phone (carries forward)
+   - **Catchup**: Informal catchup call (doesn't count towards target)
 
 ### Using the Summary Page
 1. Hover over the sidebar and click "Summary"
@@ -182,6 +183,7 @@ Contacts automatically appear on subsequent days if:
 - **C**: Light green
 - **N/A**: Orange
 - **DNP**: Red/orange
+- **Catchup**: Pink
 
 ## 📝 License
 

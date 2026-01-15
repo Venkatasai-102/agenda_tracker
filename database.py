@@ -69,7 +69,7 @@ def init_db():
         CREATE TABLE IF NOT EXISTS calls (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL,
-            response TEXT NOT NULL CHECK(response IN ('A', 'B', 'C', 'NA', 'DNP')),
+            response TEXT NOT NULL CHECK(response IN ('A', 'B', 'C', 'NA', 'DNP', 'CATCHUP')),
             date TEXT NOT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
@@ -179,6 +179,7 @@ def get_today_stats(call_date: Optional[str] = None) -> dict:
         "C": 0,
         "NA": 0,
         "DNP": 0,
+        "CATCHUP": 0,
         "total": 0,
         "successful": 0  # A + B + C
     }
@@ -186,7 +187,8 @@ def get_today_stats(call_date: Optional[str] = None) -> dict:
     for row in cursor.fetchall():
         response = row["response"]
         count = row["count"]
-        stats[response] = count
+        if response in stats:
+            stats[response] = count
         stats["total"] += count
         if response in ("A", "B", "C"):
             stats["successful"] += count

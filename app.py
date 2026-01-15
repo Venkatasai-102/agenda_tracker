@@ -37,6 +37,12 @@ def get_encouraging_message(response: str, successful_count: int, target: int) -
             "type": "followup",
             "emoji": "🔥"
         }
+    elif response == "CATCHUP":
+        return {
+            "text": "Nice catchup! Building relationships matters!",
+            "type": "catchup",
+            "emoji": "💝"
+        }
     else:  # DNP
         return {
             "text": "Someone's waiting for your call. Let's reach till there!",
@@ -94,7 +100,7 @@ def add_call():
     if not name:
         return jsonify({"error": "Name is required"}), 400
     
-    if response not in ("A", "B", "C", "NA", "DNP"):
+    if response not in ("A", "B", "C", "NA", "DNP", "CATCHUP"):
         return jsonify({"error": "Invalid response type"}), 400
     
     # Add the call
@@ -164,7 +170,7 @@ def update_call():
     if not call_id:
         return jsonify({"error": "Call ID is required"}), 400
     
-    if response not in ("A", "B", "C", "NA", "DNP"):
+    if response not in ("A", "B", "C", "NA", "DNP", "CATCHUP"):
         return jsonify({"error": "Invalid response type"}), 400
     
     updated = database.update_call(call_id, response)

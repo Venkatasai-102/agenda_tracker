@@ -52,6 +52,7 @@
                 <button class="filter-btn filter-c {% if 'C' in active_filters %}active{% endif %}" data-filter="C" onclick="toggleFilter('C')">C</button>
                 <button class="filter-btn filter-na {% if 'NA' in active_filters %}active{% endif %}" data-filter="NA" onclick="toggleFilter('NA')">N/A</button>
                 <button class="filter-btn filter-dnp {% if 'DNP' in active_filters %}active{% endif %}" data-filter="DNP" onclick="toggleFilter('DNP')">DNP</button>
+                <button class="filter-btn filter-catchup {% if 'CATCHUP' in active_filters %}active{% endif %}" data-filter="CATCHUP" onclick="toggleFilter('CATCHUP')">Catchup</button>
                 <button class="filter-btn filter-un {% if 'UN' in active_filters %}active{% endif %}" data-filter="UN" onclick="toggleFilter('UN')">Un-Attempted</button>
             </div>
         </section>
@@ -87,6 +88,8 @@
                                             Un-Attempted
                                         {% elif contact.display_response == 'NA' %}
                                             N/A
+                                        {% elif contact.display_response == 'CATCHUP' %}
+                                            Catchup
                                         {% else %}
                                             {{ contact.display_response }}
                                         {% endif %}

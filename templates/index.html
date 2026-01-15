@@ -98,6 +98,7 @@
                                         <option value="C" {% if call.response == 'C' %}selected{% endif %}>C</option>
                                         <option value="NA" {% if call.response == 'NA' %}selected{% endif %}>N/A</option>
                                         <option value="DNP" {% if call.response == 'DNP' %}selected{% endif %}>DNP</option>
+                                        <option value="CATCHUP" {% if call.response == 'CATCHUP' %}selected{% endif %}>Catchup</option>
                                     </select>
                                     {% else %}
                                     <select class="response-select" onchange="logCall('{{ contact.name }}', this.value, this)">
@@ -107,6 +108,7 @@
                                         <option value="C">C</option>
                                         <option value="NA">N/A</option>
                                         <option value="DNP">DNP</option>
+                                        <option value="CATCHUP">Catchup</option>
                                     </select>
                                     {% endif %}
                                 </td>
@@ -171,6 +173,10 @@
                         <div class="stat-card mini dnp-stat">
                             <span class="stat-value" id="dnpCalls">{{ stats.DNP }}</span>
                             <span class="stat-label">DNP</span>
+                        </div>
+                        <div class="stat-card mini catchup-stat">
+                            <span class="stat-value" id="catchupCalls">{{ stats.CATCHUP }}</span>
+                            <span class="stat-label">Catchup</span>
                         </div>
                     </div>
                 </div>
@@ -271,6 +277,7 @@
                                 <option value="C">C</option>
                                 <option value="NA">N/A</option>
                                 <option value="DNP">DNP</option>
+                                <option value="CATCHUP">Catchup</option>
                             </select>
                         </td>
                         <td class="col-action">
@@ -329,6 +336,7 @@
                                 <option value="C" ${response === 'C' ? 'selected' : ''}>C</option>
                                 <option value="NA" ${response === 'NA' ? 'selected' : ''}>N/A</option>
                                 <option value="DNP" ${response === 'DNP' ? 'selected' : ''}>DNP</option>
+                                <option value="CATCHUP" ${response === 'CATCHUP' ? 'selected' : ''}>Catchup</option>
                             `;
                             selectEl.onchange = function() { updateCall(data.call_id, this.value, this); };
                         }
@@ -404,6 +412,7 @@
                                 <option value="C">C</option>
                                 <option value="NA">N/A</option>
                                 <option value="DNP">DNP</option>
+                                <option value="CATCHUP">Catchup</option>
                             </select>
                         `;
                         
@@ -483,6 +492,7 @@
             document.getElementById('cCalls').textContent = stats.C;
             document.getElementById('naCalls').textContent = stats.NA;
             document.getElementById('dnpCalls').textContent = stats.DNP;
+            document.getElementById('catchupCalls').textContent = stats.CATCHUP;
             
             // Update successful count in progress section
             const successfulCount = document.getElementById('successfulCount');
