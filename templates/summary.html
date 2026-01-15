@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Summary - Calls Tracker</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Sidebar Navigation -->
+    <nav class="sidebar">
+        <div class="sidebar-icon">☰</div>
+        <div class="sidebar-content">
+            <a href="/" class="sidebar-link">
+                <span class="sidebar-link-icon">📞</span>
+                <span class="sidebar-link-text">Daily Tracker</span>
+            </a>
+            <a href="/summary" class="sidebar-link active">
+                <span class="sidebar-link-icon">📋</span>
+                <span class="sidebar-link-text">Summary</span>
+            </a>
+        </div>
+    </nav>
+
+    <div class="container with-sidebar">
+        <header>
+            <h1>📋 Summary</h1>
+        </header>
+
+        <!-- Filter Section -->
+        <section class="filter-section">
+            <div class="filter-header">
+                <h2>Filter by Response</h2>
+                {% set not_added_count = contacts | rejectattr('name', 'in', added_to_today) | list | length %}
+                {% if active_filters and not_added_count > 0 %}
+                <button class="btn-add-all" onclick="addAllToToday()">
+                    + Add {{ not_added_count }} to Today
+                </button>
+                {% elif active_filters and not_added_count == 0 and contacts %}
+                <button class="btn-add-all added" disabled>
+                    ✓ All Added
+                </button>
+                {% endif %}
+            </div>
+            <div class="filter-buttons">
+                <button class="filter-btn {% if not active_filters %}active{% endif %}" data-filter="ALL" onclick="toggleFilter('ALL')">ALL</button>
+                <button class="filter-btn filter-a {% if 'A' in active_filters %}active{% endif %}" data-filter="A" onclick="toggleFilter('A')">A</button>
+                <button class="filter-btn filter-b {% if 'B' in active_filters %}active{% endif %}" data-filter="B" onclick="toggleFilter('B')">B</button>
+                <button class="filter-btn filter-c {% if 'C' in active_filters %}active{% endif %}" data-filter="C" onclick="toggleFilter('C')">C</button>
+                <button class="filter-btn filter-na {% if 'NA' in active_filters %}active{% endif %}" data-filter="NA" onclick="toggleFilter('NA')">N/A</button>
+                <button class="filter-btn filter-dnp {% if 'DNP' in active_filters %}active{% endif %}" data-filter="DNP" onclick="toggleFilter('DNP')">DNP</button>
+                <button class="filter-btn filter-un {% if 'UN' in active_filters %}active{% endif %}" data-filter="UN" onclick="toggleFilter('UN')">Un-Attempted</button>
+            </div>
+        </section>
+
+        <!-- Summary Table -->
+        <section class="summary-table-section">
+            <div class="table-container">
+                <table class="summary-table">
+                    <thead>
+                        <tr>
+                            <th>Last Called</th>
+                            <th>Name</th>
+                            <th>Response</th>
+                            <th class="dnp-col">DNP Attempts</th>
+                            <th class="action-col">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% if contacts %}
+                            {% for contact in contacts %}
+                            <tr class="response-row-{{ contact.display_response | lower }}" data-name="{{ contact.name }}">
+                                <td class="col-date">
+                                    {% if contact.last_called_date %}
+                                        <span class="formatted-date" data-date="{{ contact.last_called_date }}">{{ contact.last_called_date }}</span>
+                                    {% else %}
+                                        <span class="not-called">Never</span>
+                                    {% endif %}
+                                </td>
+                                <td class="col-name">{{ contact.name }}</td>
+                                <td class="col-response">
+                                    <span class="response-badge response-{{ contact.display_response | lower }}">
+                                        {% if contact.display_response == 'UN' %}
+                                            Un-Attempted
+                                        {% elif contact.display_response == 'NA' %}
+                                            N/A
+                                        {% else %}
+                                            {{ contact.display_response }}
+                                        {% endif %}
+                                    </span>
+                                </td>
+                                <td class="col-dnp">
+                                    {% if contact.dnp_count > 0 %}
+                                        <span class="dnp-count">{{ contact.dnp_count }}</span>
+                                    {% else %}
+                                        <span class="no-dnp">-</span>
+                                    {% endif %}
+                                </td>
+                                <td class="col-action">
+                                    {% if contact.name in added_to_today %}
+                                    <button class="btn-add-today added" disabled title="Already in today's list">
+                                        ✓ Added
+                                    </button>
+                                    {% else %}
+                                    <button class="btn-add-today" onclick="addToToday('{{ contact.name }}')" title="Add to today's list">
+                                        + Today
+                                    </button>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        {% else %}
+                            <tr>
+                                <td colspan="5" class="empty-message">No contacts found matching the filter.</td>
+                            </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+            <div class="summary-stats">
+                <span class="total-count">Total: {{ contacts | length }} contacts</span>
+            </div>
+        </section>
+    </div>
+
+    <script>
+        let activeFilters = {{ active_filters | tojson }};
+        const addedToToday = new Set({{ added_to_today | list | tojson }});
+        const allContactNames = {{ contacts | map(attribute='name') | list | tojson }};
+        const notAddedContactNames = allContactNames.filter(name => !addedToToday.has(name));
+
+        function toggleFilter(filter) {
+            if (filter === 'ALL') {
+                // Clear all filters
+                activeFilters = [];
+            } else {
+                // Toggle the specific filter
+                const index = activeFilters.indexOf(filter);
+                if (index > -1) {
+                    activeFilters.splice(index, 1);
+                } else {
+                    activeFilters.push(filter);
+                }
+            }
+            
+            // Navigate to URL with filters
+            if (activeFilters.length === 0) {
+                window.location.href = '/summary';
+            } else {
+                window.location.href = `/summary?filter=${activeFilters.join(',')}`;
+            }
+        }
+
+        async function addToToday(name) {
+            try {
+                const res = await fetch('/add-to-today', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name })
+                });
+                
+                const data = await res.json();
+                
+                // Update button to show added (silently, no popup)
+                const row = document.querySelector(`tr[data-name="${name}"]`);
+                if (row) {
+                    const btn = row.querySelector('.btn-add-today');
+                    if (data.success) {
+                        btn.textContent = '✓ Added';
+                        btn.classList.add('added');
+                        btn.disabled = true;
+                    } else {
+                        // Already in list - show as added anyway
+                        btn.textContent = '✓ Added';
+                        btn.classList.add('added');
+                        btn.disabled = true;
+                    }
+                }
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        }
+
+        async function addAllToToday() {
+            if (notAddedContactNames.length === 0) return;
+            if (!confirm(`Add ${notAddedContactNames.length} contacts to today's list?`)) return;
+            
+            try {
+                const res = await fetch('/add-multiple-to-today', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ names: notAddedContactNames })
+                });
+                
+                const data = await res.json();
+                
+                if (data.success) {
+                    // Update buttons for added contacts
+                    notAddedContactNames.forEach(name => {
+                        const row = document.querySelector(`tr[data-name="${name}"]`);
+                        if (row) {
+                            const btn = row.querySelector('.btn-add-today');
+                            if (btn) {
+                                btn.textContent = '✓ Added';
+                                btn.classList.add('added');
+                                btn.disabled = true;
+                            }
+                        }
+                    });
+                    // Update the "Add All" button too
+                    const addAllBtn = document.querySelector('.btn-add-all');
+                    if (addAllBtn) {
+                        addAllBtn.textContent = '✓ All Added';
+                        addAllBtn.classList.add('added');
+                        addAllBtn.disabled = true;
+                    }
+                }
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        }
+
+        // Format dates to dd/mm/yyyy on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            document.querySelectorAll('.formatted-date').forEach(el => {
+                const dateStr = el.dataset.date;
+                if (dateStr) {
+                    const parts = dateStr.split('-');
+                    if (parts.length === 3) {
+                        el.textContent = `${parts[2]}/${parts[1]}/${parts[0]}`;
+                    }
+                }
+            });
+        });
+    </script>
+</body>
+</html>

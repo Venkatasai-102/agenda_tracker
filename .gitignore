@@ -1,0 +1,4 @@
+__pycache__/
+calls.db
+venv/
+*.db*

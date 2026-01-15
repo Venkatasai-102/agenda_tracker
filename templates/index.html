@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calls Tracker</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Sidebar Navigation -->
+    <nav class="sidebar">
+        <div class="sidebar-icon">☰</div>
+        <div class="sidebar-content">
+            <a href="/" class="sidebar-link active">
+                <span class="sidebar-link-icon">📞</span>
+                <span class="sidebar-link-text">Daily Tracker</span>
+            </a>
+            <a href="/summary" class="sidebar-link">
+                <span class="sidebar-link-icon">📋</span>
+                <span class="sidebar-link-text">Summary</span>
+            </a>
+        </div>
+    </nav>
+
+    <div class="container with-sidebar">
+        <header>
+            <h1>📞 Calls Tracker</h1>
+            <div class="date-nav-container">
+                <button class="date-nav-btn" onclick="navigateDate(-1)" title="Previous day">&lt;</button>
+                <span class="current-date" id="currentDateDisplay">{{ selected_date }}</span>
+                <button class="date-nav-btn" onclick="navigateDate(1)" title="Next day">&gt;</button>
+                {% if not is_today %}
+                <button class="btn-today" onclick="goToToday()">Today</button>
+                {% endif %}
+            </div>
+        </header>
+
+        <!-- Target Section -->
+        <section class="target-section">
+            <div class="target-display">
+                <span class="label">Daily Target</span>
+                <div class="target-value" id="targetValue">
+                    {% if target %}
+                        {{ target }}
+                    {% else %}
+                        <span class="not-set">Not Set</span>
+                    {% endif %}
+                </div>
+                <button class="btn-edit" onclick="showTargetModal()">
+                    {% if target %}Edit{% else %}Set Target{% endif %}
+                </button>
+            </div>
+            
+            <!-- Progress Bar -->
+            {% if target %}
+            <div class="progress-container">
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill" 
+                         style="width: {{ [stats.successful / target * 100, 100] | min }}%"></div>
+                </div>
+                <div class="progress-text">
+                    <span id="successfulCount">{{ stats.successful }}</span> / <span id="targetDisplay">{{ target }}</span> successful calls
+                </div>
+            </div>
+            {% endif %}
+        </section>
+
+        <!-- Message Display -->
+        <div id="messageDisplay" class="message-display hidden"></div>
+
+        <!-- Main Content Layout -->
+        <div class="main-layout">
+            <!-- Left Side: Today's Lucky Folks Table -->
+            <section class="calls-table-section">
+                <h2>Today's Lucky Folks</h2>
+                <div class="table-container">
+                    <table class="calls-table" id="callsTable">
+                        <thead>
+                            <tr>
+                                <th class="col-name">Name</th>
+                                <th class="col-response">Response</th>
+                                <th class="col-action"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="tableBody">
+                            {% for contact in contacts %}
+                            {% set call = calls | selectattr('name', 'equalto', contact.name) | first %}
+                            <tr data-contact-id="{{ contact.id }}" data-name="{{ contact.name }}" {% if call %}data-call-id="{{ call.id }}"{% endif %}>
+                                <td class="col-name">{{ contact.name }}</td>
+                                <td class="col-response">
+                                    {% if call %}
+                                    <select class="response-select has-response response-{{ call.response | lower }}" onchange="updateCall({{ call.id }}, this.value, this)">
+                                        <option value="A" {% if call.response == 'A' %}selected{% endif %}>A</option>
+                                        <option value="B" {% if call.response == 'B' %}selected{% endif %}>B</option>
+                                        <option value="C" {% if call.response == 'C' %}selected{% endif %}>C</option>
+                                        <option value="NA" {% if call.response == 'NA' %}selected{% endif %}>N/A</option>
+                                        <option value="DNP" {% if call.response == 'DNP' %}selected{% endif %}>DNP</option>
+                                    </select>
+                                    {% else %}
+                                    <select class="response-select" onchange="logCall('{{ contact.name }}', this.value, this)">
+                                        <option value="">Select...</option>
+                                        <option value="A">A</option>
+                                        <option value="B">B</option>
+                                        <option value="C">C</option>
+                                        <option value="NA">N/A</option>
+                                        <option value="DNP">DNP</option>
+                                    </select>
+                                    {% endif %}
+                                </td>
+                                <td class="col-action">
+                                    {% if call %}
+                                    <button class="btn-delete" onclick="deleteCall({{ call.id }}, '{{ contact.name }}')" title="Delete call">×</button>
+                                    {% else %}
+                                    <button class="btn-delete" onclick="deleteContact({{ contact.id }})" title="Remove from list">×</button>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                            <!-- Add new row -->
+                            <tr class="add-row">
+                                <td class="col-name">
+                                    <input type="text" id="newNameInput" placeholder="Add new name..." onkeypress="handleAddKeypress(event)">
+                                </td>
+                                <td class="col-response">
+                                    <button class="btn-add" onclick="addName()">+ Add</button>
+                                </td>
+                                <td class="col-action"></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                {% if not contacts %}
+                <p class="empty-message">No contacts yet. Add names above to start tracking calls!</p>
+                {% endif %}
+            </section>
+
+            <!-- Right Side: Stats + Calendar -->
+            <aside class="stats-sidebar">
+                <h2>Stats</h2>
+                <div class="stats-vertical">
+                    <div class="stat-card total">
+                        <span class="stat-value" id="totalCalls">{{ stats.total }}</span>
+                        <span class="stat-label">Total</span>
+                    </div>
+                    <div class="stat-card success-stat">
+                        <span class="stat-value" id="successfulCalls">{{ stats.successful }}</span>
+                        <span class="stat-label">Success</span>
+                    </div>
+                    <div class="stat-row">
+                        <div class="stat-card mini a-stat">
+                            <span class="stat-value" id="aCalls">{{ stats.A }}</span>
+                            <span class="stat-label">A</span>
+                        </div>
+                        <div class="stat-card mini b-stat">
+                            <span class="stat-value" id="bCalls">{{ stats.B }}</span>
+                            <span class="stat-label">B</span>
+                        </div>
+                        <div class="stat-card mini c-stat">
+                            <span class="stat-value" id="cCalls">{{ stats.C }}</span>
+                            <span class="stat-label">C</span>
+                        </div>
+                    </div>
+                    <div class="stat-row">
+                        <div class="stat-card mini na-stat">
+                            <span class="stat-value" id="naCalls">{{ stats.NA }}</span>
+                            <span class="stat-label">N/A</span>
+                        </div>
+                        <div class="stat-card mini dnp-stat">
+                            <span class="stat-value" id="dnpCalls">{{ stats.DNP }}</span>
+                            <span class="stat-label">DNP</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Calendar Section -->
+                <div class="calendar-section">
+                    <div class="calendar-header">
+                        <button class="cal-nav-btn" onclick="changeCalendarMonth(-1)">&lt;</button>
+                        <span class="calendar-month" id="calendarMonth"></span>
+                        <button class="cal-nav-btn" onclick="changeCalendarMonth(1)">&gt;</button>
+                    </div>
+                    <div class="calendar-grid">
+                        <div class="cal-day-header">S</div>
+                        <div class="cal-day-header">M</div>
+                        <div class="cal-day-header">T</div>
+                        <div class="cal-day-header">W</div>
+                        <div class="cal-day-header">T</div>
+                        <div class="cal-day-header">F</div>
+                        <div class="cal-day-header">S</div>
+                    </div>
+                    <div class="calendar-days" id="calendarDays"></div>
+                </div>
+            </aside>
+        </div>
+    </div>
+
+    <!-- Target Modal -->
+    <div id="targetModal" class="modal hidden">
+        <div class="modal-content">
+            <h3>Set Daily Target</h3>
+            <form onsubmit="setTarget(event)">
+                <input type="number" id="targetInput" min="1" placeholder="Enter target..." required>
+                <div class="modal-buttons">
+                    <button type="button" class="btn-cancel" onclick="hideTargetModal()">Cancel</button>
+                    <button type="submit" class="btn-confirm">Set Target</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        let currentTarget = {{ target if target else 0 }};
+        let selectedDate = "{{ selected_date }}";
+        const today = "{{ today }}";
+
+        function changeDate(date) {
+            window.location.href = `/?date=${date}`;
+        }
+
+        function goToToday() {
+            window.location.href = '/';
+        }
+
+        function navigateDate(days) {
+            const currentDate = new Date(selectedDate);
+            currentDate.setDate(currentDate.getDate() + days);
+            const newDate = currentDate.toISOString().split('T')[0];
+            window.location.href = `/?date=${newDate}`;
+        }
+
+        function handleAddKeypress(event) {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                addName();
+            }
+        }
+
+        async function addName() {
+            const input = document.getElementById('newNameInput');
+            const name = input.value.trim();
+            
+            if (!name) return;
+            
+            try {
+                const res = await fetch('/add-contact', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, date: selectedDate })
+                });
+                
+                const data = await res.json();
+                
+                if (data.success) {
+                    // Add new row before the add-row
+                    const tbody = document.getElementById('tableBody');
+                    const addRow = tbody.querySelector('.add-row');
+                    
+                    const newRow = document.createElement('tr');
+                    newRow.dataset.contactId = data.contact.id;
+                    newRow.dataset.name = name;
+                    newRow.innerHTML = `
+                        <td class="col-name">${escapeHtml(name)}</td>
+                        <td class="col-response">
+                            <select class="response-select" onchange="logCall('${escapeHtml(name)}', this.value, this)">
+                                <option value="">Select...</option>
+                                <option value="A">A</option>
+                                <option value="B">B</option>
+                                <option value="C">C</option>
+                                <option value="NA">N/A</option>
+                                <option value="DNP">DNP</option>
+                            </select>
+                        </td>
+                        <td class="col-action">
+                            <button class="btn-delete" onclick="deleteContact(${data.contact.id})" title="Remove from list">×</button>
+                        </td>
+                    `;
+                    
+                    tbody.insertBefore(newRow, addRow);
+                    
+                    // Remove empty message if present
+                    const emptyMsg = document.querySelector('.empty-message');
+                    if (emptyMsg) emptyMsg.remove();
+                    
+                    // Clear input
+                    input.value = '';
+                    input.focus();
+                } else {
+                    // Show error message
+                    showMessage(data.error || 'Failed to add name', 'error');
+                    // Clear input so user can try a new name
+                    input.value = '';
+                    input.focus();
+                }
+            } catch (error) {
+                console.error('Error adding name:', error);
+            }
+        }
+
+        async function logCall(name, response, selectEl) {
+            if (!response) return; // Ignore empty selection
+            
+            try {
+                const res = await fetch('/add-call', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, response, date: selectedDate })
+                });
+                
+                const data = await res.json();
+                
+                if (data.success) {
+                    // Show encouraging message
+                    showMessage(data.message);
+                    
+                    // Update the row
+                    const row = document.querySelector(`tr[data-name="${name}"]`);
+                    if (row) {
+                        row.dataset.callId = data.call_id;
+                        
+                        // Update dropdown to show selected state and change handler
+                        if (selectEl) {
+                            selectEl.classList.add('has-response', `response-${response.toLowerCase()}`);
+                            selectEl.innerHTML = `
+                                <option value="A" ${response === 'A' ? 'selected' : ''}>A</option>
+                                <option value="B" ${response === 'B' ? 'selected' : ''}>B</option>
+                                <option value="C" ${response === 'C' ? 'selected' : ''}>C</option>
+                                <option value="NA" ${response === 'NA' ? 'selected' : ''}>N/A</option>
+                                <option value="DNP" ${response === 'DNP' ? 'selected' : ''}>DNP</option>
+                            `;
+                            selectEl.onchange = function() { updateCall(data.call_id, this.value, this); };
+                        }
+                        
+                        const actionCell = row.querySelector('.col-action');
+                        actionCell.innerHTML = `<button class="btn-delete" onclick="deleteCall(${data.call_id}, '${escapeHtml(name)}')" title="Delete call">×</button>`;
+                    }
+                    
+                    // Update stats
+                    updateStats(data.stats);
+                }
+            } catch (error) {
+                console.error('Error logging call:', error);
+                // Reset dropdown if error
+                if (selectEl) selectEl.value = '';
+            }
+        }
+
+        async function updateCall(callId, response, selectEl) {
+            const oldResponse = selectEl.dataset.currentResponse || '';
+            
+            try {
+                const res = await fetch('/update-call', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ call_id: callId, response, date: selectedDate })
+                });
+                
+                const data = await res.json();
+                
+                if (data.success) {
+                    // Show encouraging message
+                    showMessage(data.message);
+                    
+                    // Update dropdown styling
+                    selectEl.className = `response-select has-response response-${response.toLowerCase()}`;
+                    selectEl.dataset.currentResponse = response;
+                    
+                    // Update stats
+                    updateStats(data.stats);
+                }
+            } catch (error) {
+                console.error('Error updating call:', error);
+                // Reset dropdown if error
+                if (selectEl && oldResponse) selectEl.value = oldResponse;
+            }
+        }
+
+        async function deleteCall(callId, contactName) {
+            try {
+                const res = await fetch('/delete-call', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ call_id: callId, date: selectedDate })
+                });
+                
+                const data = await res.json();
+                
+                if (data.success) {
+                    // Restore response dropdown in the row
+                    const row = document.querySelector(`tr[data-call-id="${callId}"]`);
+                    if (row) {
+                        delete row.dataset.callId;
+                        const name = row.dataset.name;
+                        const contactId = row.dataset.contactId;
+                        
+                        const responseCell = row.querySelector('.col-response');
+                        responseCell.innerHTML = `
+                            <select class="response-select" onchange="logCall('${escapeHtml(name)}', this.value, this)">
+                                <option value="">Select...</option>
+                                <option value="A">A</option>
+                                <option value="B">B</option>
+                                <option value="C">C</option>
+                                <option value="NA">N/A</option>
+                                <option value="DNP">DNP</option>
+                            </select>
+                        `;
+                        
+                        const actionCell = row.querySelector('.col-action');
+                        actionCell.innerHTML = `<button class="btn-delete" onclick="deleteContact(${contactId})" title="Remove from list">×</button>`;
+                    }
+                    
+                    // Update stats
+                    updateStats(data.stats);
+                }
+            } catch (error) {
+                console.error('Error deleting call:', error);
+            }
+        }
+
+        async function deleteContact(contactId) {
+            try {
+                const res = await fetch('/delete-contact', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ contact_id: contactId })
+                });
+                
+                const data = await res.json();
+                
+                if (data.success) {
+                    // Remove the row
+                    const row = document.querySelector(`tr[data-contact-id="${contactId}"]`);
+                    if (row) {
+                        row.remove();
+                    }
+                    
+                    // Show empty message if no more contacts
+                    const tbody = document.getElementById('tableBody');
+                    if (tbody.querySelectorAll('tr:not(.add-row)').length === 0) {
+                        const section = document.querySelector('.calls-table-section');
+                        const emptyMsg = document.createElement('p');
+                        emptyMsg.className = 'empty-message';
+                        emptyMsg.textContent = 'No contacts yet. Add names above to start tracking calls!';
+                        section.appendChild(emptyMsg);
+                    }
+                }
+            } catch (error) {
+                console.error('Error deleting contact:', error);
+            }
+        }
+
+        function showMessage(message, type = null) {
+            const display = document.getElementById('messageDisplay');
+            
+            // Handle both string (error) and object (success) messages
+            if (typeof message === 'string') {
+                display.innerHTML = `
+                    <span class="message-emoji">⚠️</span>
+                    <span class="message-text">${message}</span>
+                `;
+                display.className = `message-display ${type || 'error'}`;
+            } else {
+                display.innerHTML = `
+                    <span class="message-emoji">${message.emoji}</span>
+                    <span class="message-text">${message.text}</span>
+                `;
+                display.className = `message-display ${message.type}`;
+            }
+            
+            // Auto-hide after 4 seconds
+            setTimeout(() => {
+                display.classList.add('hidden');
+            }, 4000);
+        }
+
+        function updateStats(stats) {
+            document.getElementById('totalCalls').textContent = stats.total;
+            document.getElementById('successfulCalls').textContent = stats.successful;
+            document.getElementById('aCalls').textContent = stats.A;
+            document.getElementById('bCalls').textContent = stats.B;
+            document.getElementById('cCalls').textContent = stats.C;
+            document.getElementById('naCalls').textContent = stats.NA;
+            document.getElementById('dnpCalls').textContent = stats.DNP;
+            
+            // Update successful count in progress section
+            const successfulCount = document.getElementById('successfulCount');
+            if (successfulCount) {
+                successfulCount.textContent = stats.successful;
+            }
+            
+            // Update progress bar
+            if (currentTarget > 0) {
+                const progress = Math.min((stats.successful / currentTarget) * 100, 100);
+                const progressFill = document.getElementById('progressFill');
+                if (progressFill) {
+                    progressFill.style.width = progress + '%';
+                }
+            }
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function showTargetModal() {
+            document.getElementById('targetModal').classList.remove('hidden');
+            document.getElementById('targetInput').value = currentTarget || '';
+            document.getElementById('targetInput').focus();
+        }
+
+        function hideTargetModal() {
+            document.getElementById('targetModal').classList.add('hidden');
+        }
+
+        async function setTarget(event) {
+            event.preventDefault();
+            
+            const target = parseInt(document.getElementById('targetInput').value);
+            
+            if (target < 1) return;
+
+            try {
+                const res = await fetch('/set-target', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ target, date: selectedDate })
+                });
+                
+                const data = await res.json();
+                
+                if (data.success) {
+                    currentTarget = target;
+                    document.getElementById('targetValue').textContent = target;
+                    hideTargetModal();
+                    
+                    // Reload page to show progress bar if it wasn't there before
+                    if (!document.getElementById('progressFill')) {
+                        location.reload();
+                    } else {
+                        // Update the target display in progress text
+                        const targetDisplay = document.getElementById('targetDisplay');
+                        if (targetDisplay) {
+                            targetDisplay.textContent = target;
+                        }
+                        // Update progress bar width
+                        const stats = await fetch(`/stats?date=${selectedDate}`).then(r => r.json());
+                        const progress = Math.min((stats.stats.successful / target) * 100, 100);
+                        document.getElementById('progressFill').style.width = progress + '%';
+                    }
+                }
+            } catch (error) {
+                console.error('Error setting target:', error);
+            }
+        }
+
+        // Close modal on escape key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                hideTargetModal();
+            }
+        });
+
+        // Close modal on background click
+        document.getElementById('targetModal').addEventListener('click', (e) => {
+            if (e.target.id === 'targetModal') {
+                hideTargetModal();
+            }
+        });
+
+        // Calendar functionality
+        let calendarYear, calendarMonth;
+        let monthAchievements = {};
+        const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
+                           'July', 'August', 'September', 'October', 'November', 'December'];
+
+        function initCalendar() {
+            const parts = selectedDate.split('-');
+            calendarYear = parseInt(parts[0]);
+            calendarMonth = parseInt(parts[1]);
+            loadCalendarMonth();
+        }
+
+        async function loadCalendarMonth() {
+            // Update header
+            document.getElementById('calendarMonth').textContent = 
+                `${monthNames[calendarMonth - 1]} ${calendarYear}`;
+            
+            // Fetch achievements
+            try {
+                const res = await fetch(`/month-achievements?year=${calendarYear}&month=${calendarMonth}`);
+                const data = await res.json();
+                monthAchievements = data.achievements || {};
+            } catch (e) {
+                monthAchievements = {};
+            }
+            
+            renderCalendar();
+        }
+
+        function renderCalendar() {
+            const container = document.getElementById('calendarDays');
+            container.innerHTML = '';
+            
+            const firstDay = new Date(calendarYear, calendarMonth - 1, 1);
+            const lastDay = new Date(calendarYear, calendarMonth, 0);
+            const startDayOfWeek = firstDay.getDay();
+            const daysInMonth = lastDay.getDate();
+            
+            // Today's date parts
+            const todayParts = today.split('-');
+            const todayYear = parseInt(todayParts[0]);
+            const todayMonth = parseInt(todayParts[1]);
+            const todayDate = parseInt(todayParts[2]);
+            
+            // Selected date parts
+            const selectedParts = selectedDate.split('-');
+            const selectedYear = parseInt(selectedParts[0]);
+            const selectedMonth = parseInt(selectedParts[1]);
+            const selectedDay = parseInt(selectedParts[2]);
+            
+            // Empty cells before first day
+            for (let i = 0; i < startDayOfWeek; i++) {
+                const empty = document.createElement('div');
+                empty.className = 'cal-day empty';
+                container.appendChild(empty);
+            }
+            
+            // Days of month
+            for (let day = 1; day <= daysInMonth; day++) {
+                const dateStr = `${calendarYear}-${String(calendarMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                const dayEl = document.createElement('div');
+                dayEl.className = 'cal-day';
+                
+                // Check if this is today
+                if (calendarYear === todayYear && calendarMonth === todayMonth && day === todayDate) {
+                    dayEl.classList.add('today');
+                }
+                
+                // Check if this is selected date
+                if (calendarYear === selectedYear && calendarMonth === selectedMonth && day === selectedDay) {
+                    dayEl.classList.add('selected');
+                }
+                
+                // Check if future date
+                const thisDate = new Date(calendarYear, calendarMonth - 1, day);
+                const todayDateObj = new Date(todayYear, todayMonth - 1, todayDate);
+                if (thisDate > todayDateObj) {
+                    dayEl.classList.add('future');
+                }
+                
+                dayEl.innerHTML = `<span class="day-num">${day}</span>`;
+                
+                // Add achievement indicator
+                if (monthAchievements[dateStr]) {
+                    dayEl.innerHTML += '<span class="achievement">🎉</span>';
+                    dayEl.classList.add('achieved');
+                }
+                
+                // Click to navigate
+                if (thisDate <= todayDateObj) {
+                    dayEl.onclick = () => changeDate(dateStr);
+                    dayEl.style.cursor = 'pointer';
+                }
+                
+                container.appendChild(dayEl);
+            }
+        }
+
+        function changeCalendarMonth(delta) {
+            calendarMonth += delta;
+            if (calendarMonth > 12) {
+                calendarMonth = 1;
+                calendarYear++;
+            } else if (calendarMonth < 1) {
+                calendarMonth = 12;
+                calendarYear--;
+            }
+            loadCalendarMonth();
+        }
+
+        // Format date display
+        function formatDateDisplay(dateStr) {
+            const parts = dateStr.split('-');
+            return `${parts[2]}/${parts[1]}/${parts[0]}`;
+        }
+
+        // Initialize calendar and date display on load
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('currentDateDisplay').textContent = formatDateDisplay(selectedDate);
+            initCalendar();
+        });
+    </script>
+</body>
+</html>
