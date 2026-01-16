@@ -23,6 +23,13 @@
                 <span class="sidebar-link-text">Summary</span>
             </a>
         </div>
+        <div class="theme-toggle">
+            <label class="toggle-switch">
+                <input type="checkbox" id="themeToggle" onchange="toggleTheme()">
+                <span class="toggle-slider"></span>
+            </label>
+            <span class="theme-toggle-label">Light Mode</span>
+        </div>
     </nav>
 
     <div class="container with-sidebar">
@@ -222,6 +229,24 @@
         let currentTarget = {{ target if target else 0 }};
         let selectedDate = "{{ selected_date }}";
         const today = "{{ today }}";
+
+        // Theme handling
+        function initTheme() {
+            const savedTheme = localStorage.getItem('theme') || 'dark';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+            const toggle = document.getElementById('themeToggle');
+            if (toggle) toggle.checked = savedTheme === 'light';
+        }
+        
+        function toggleTheme() {
+            const toggle = document.getElementById('themeToggle');
+            const newTheme = toggle.checked ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+        }
+        
+        // Initialize theme on page load
+        initTheme();
 
         function changeDate(date) {
             window.location.href = `/?date=${date}`;
