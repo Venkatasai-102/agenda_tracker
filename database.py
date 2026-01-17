@@ -396,7 +396,8 @@ def update_call(call_id: int, response: str) -> bool:
 def get_all_contacts_summary(filters: list = None) -> list:
     """
     Get summary of all contacts with their latest response.
-    Includes DNP count for contacts whose latest response is DNP.
+    Includes contacts from both the contacts table AND the calls table,
+    so removed contacts still appear in the summary if they have call history.
     
     filters: list of response types to include (e.g., ['A', 'B', 'DNP', 'UN'])
              'UN' means un-attempted contacts
@@ -405,16 +406,20 @@ def get_all_contacts_summary(filters: list = None) -> list:
     conn = get_connection()
     cursor = conn.cursor()
     
-    # Get all contacts with their latest call info and DNP count
+    # Get all unique names from both contacts and calls tables
+    # Then get their latest call info and DNP count
     cursor.execute("""
         SELECT 
-            c.id,
-            c.name,
-            c.date as added_date,
+            all_names.name,
             latest.response as latest_response,
             latest.date as last_called_date,
             COALESCE(dnp_counts.dnp_count, 0) as dnp_count
-        FROM contacts c
+        FROM (
+            -- Get unique names from both tables
+            SELECT DISTINCT name FROM contacts
+            UNION
+            SELECT DISTINCT name FROM calls
+        ) all_names
         LEFT JOIN (
             -- Get the latest call for each contact
             SELECT 
@@ -423,19 +428,18 @@ def get_all_contacts_summary(filters: list = None) -> list:
                 date,
                 ROW_NUMBER() OVER (PARTITION BY name ORDER BY date DESC, created_at DESC) as rn
             FROM calls
-        ) latest ON c.name = latest.name AND latest.rn = 1
+        ) latest ON all_names.name = latest.name AND latest.rn = 1
         LEFT JOIN (
             -- Count total DNP calls for each contact
             SELECT name, COUNT(*) as dnp_count
             FROM calls
             WHERE response = 'DNP'
             GROUP BY name
-        ) dnp_counts ON c.name = dnp_counts.name
-        GROUP BY c.name
+        ) dnp_counts ON all_names.name = dnp_counts.name
         ORDER BY 
             CASE WHEN latest.response IS NULL THEN 1 ELSE 0 END,
             latest.date DESC,
-            c.name ASC
+            all_names.name ASC
     """)
     
     rows = cursor.fetchall()
