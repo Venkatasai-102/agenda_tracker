@@ -110,15 +110,20 @@
                                     {% endif %}
                                 </td>
                                 <td class="col-action">
-                                    {% if contact.name in added_to_today %}
-                                    <button class="btn-add-today added" disabled title="Already in today's list">
-                                        ✓ Added
-                                    </button>
-                                    {% else %}
-                                    <button class="btn-add-today" onclick="addToToday('{{ contact.name }}')" title="Add to today's list">
-                                        + Today
-                                    </button>
-                                    {% endif %}
+                                    <div class="action-buttons">
+                                        {% if contact.name in added_to_today %}
+                                        <button class="btn-add-today added" disabled title="Already in today's list">
+                                            ✓ Added
+                                        </button>
+                                        {% else %}
+                                        <button class="btn-add-today" data-name="{{ contact.name }}" onclick="addToTodayFromBtn(this)" title="Add to today's list">
+                                            + Today
+                                        </button>
+                                        {% endif %}
+                                        <button class="btn-delete-contact" data-name="{{ contact.name }}" onclick="deleteContactFromBtn(this)" title="Delete permanently">
+                                            🗑️
+                                        </button>
+                                    </div>
                                 </td>
                             </tr>
                             {% endfor %}
@@ -182,7 +187,12 @@
             }
         }
 
-        async function addToToday(name) {
+        function addToTodayFromBtn(btn) {
+            const name = btn.dataset.name;
+            addToToday(name, btn);
+        }
+
+        async function addToToday(name, btn) {
             try {
                 const res = await fetch('/add-to-today', {
                     method: 'POST',
@@ -193,9 +203,7 @@
                 const data = await res.json();
                 
                 // Update button to show added (silently, no popup)
-                const row = document.querySelector(`tr[data-name="${name}"]`);
-                if (row) {
-                    const btn = row.querySelector('.btn-add-today');
+                if (btn) {
                     if (data.success) {
                         btn.textContent = '✓ Added';
                         btn.classList.add('added');
@@ -248,6 +256,46 @@
                 }
             } catch (error) {
                 console.error('Error:', error);
+            }
+        }
+
+        function deleteContactFromBtn(btn) {
+            const name = btn.dataset.name;
+            deleteContact(name, btn);
+        }
+
+        async function deleteContact(name, btn) {
+            if (!confirm(`Are you sure you want to permanently delete "${name}"?\n\nThis will remove them from all records.`)) {
+                return;
+            }
+            
+            try {
+                const res = await fetch('/delete-contact-permanent', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name })
+                });
+                
+                const data = await res.json();
+                
+                if (data.success) {
+                    // Remove the row from the table
+                    const row = btn.closest('tr');
+                    if (row) {
+                        row.remove();
+                    }
+                    // Update the total count
+                    const totalCount = document.querySelector('.total-count');
+                    if (totalCount) {
+                        const currentCount = document.querySelectorAll('tbody tr[data-name]').length;
+                        totalCount.textContent = `Total: ${currentCount} contacts`;
+                    }
+                } else {
+                    alert(data.message || 'Failed to delete contact');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error deleting contact');
             }
         }
 

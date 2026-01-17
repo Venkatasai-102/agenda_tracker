@@ -1253,6 +1253,31 @@ section h2 {
     cursor: default;
 }
 
+/* Action buttons container */
+.action-buttons {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.btn-delete-contact {
+    padding: 0.35rem 0.5rem;
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    border-radius: var(--radius-sm);
+    color: var(--accent-red);
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    opacity: 0.6;
+}
+
+.btn-delete-contact:hover {
+    background: rgba(239, 68, 68, 0.2);
+    border-color: rgba(239, 68, 68, 0.4);
+    opacity: 1;
+}
+
 
 /* Modal */
 .modal {

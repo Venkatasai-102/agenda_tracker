@@ -86,11 +86,29 @@ def init_db():
         )
     """)
     
+    # Create all_contacts table (permanent record of all names ever added)
+    # This table is never deleted from - used for summary page
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS all_contacts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL UNIQUE,
+            first_added TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    
     # Migration: Add date column if it doesn't exist (for existing databases)
     try:
         cursor.execute("ALTER TABLE contacts ADD COLUMN date TEXT NOT NULL DEFAULT (date('now'))")
     except:
         pass  # Column already exists
+    
+    # Migration: Populate all_contacts from existing contacts and calls
+    cursor.execute("""
+        INSERT OR IGNORE INTO all_contacts (name) 
+        SELECT DISTINCT name FROM contacts
+        UNION
+        SELECT DISTINCT name FROM calls
+    """)
     
     conn.commit()
 
@@ -225,8 +243,14 @@ def add_contact(name: str, contact_date: Optional[str] = None, skip_global_check
     
     conn = get_connection()
     cursor = conn.cursor()
+    
+    # Insert into contacts table for the specific date
     cursor.execute("INSERT INTO contacts (name, date) VALUES (?, ?)", (name, contact_date))
     contact_id = cursor.lastrowid
+    
+    # Also insert into all_contacts (permanent record) - ignore if already exists
+    cursor.execute("INSERT OR IGNORE INTO all_contacts (name) VALUES (?)", (name,))
+    
     conn.commit()
     return contact_id
 
@@ -300,13 +324,31 @@ def get_all_contacts() -> list:
 
 
 def delete_contact(contact_id: int) -> bool:
-    """Delete a contact by ID."""
+    """Delete a contact by ID (from today's list only)."""
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("DELETE FROM contacts WHERE id = ?", (contact_id,))
     deleted = cursor.rowcount > 0
     conn.commit()
     return deleted
+
+
+def delete_contact_permanent(name: str) -> bool:
+    """Permanently delete a contact by name from all tables."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    # Delete from all_contacts (permanent record)
+    cursor.execute("DELETE FROM all_contacts WHERE name = ?", (name,))
+    
+    # Delete from contacts (daily list)
+    cursor.execute("DELETE FROM contacts WHERE name = ?", (name,))
+    
+    # Delete from calls (call history)
+    cursor.execute("DELETE FROM calls WHERE name = ?", (name,))
+    
+    conn.commit()
+    return True
 
 
 def contact_exists_for_date(name: str, target_date: Optional[str] = None) -> bool:
@@ -396,8 +438,7 @@ def update_call(call_id: int, response: str) -> bool:
 def get_all_contacts_summary(filters: list = None) -> list:
     """
     Get summary of all contacts with their latest response.
-    Includes contacts from both the contacts table AND the calls table,
-    so removed contacts still appear in the summary if they have call history.
+    Uses all_contacts table which permanently stores all names ever added.
     
     filters: list of response types to include (e.g., ['A', 'B', 'DNP', 'UN'])
              'UN' means un-attempted contacts
@@ -406,20 +447,15 @@ def get_all_contacts_summary(filters: list = None) -> list:
     conn = get_connection()
     cursor = conn.cursor()
     
-    # Get all unique names from both contacts and calls tables
-    # Then get their latest call info and DNP count
+    # Get all contacts from the permanent all_contacts table
+    # with their latest call info and DNP count
     cursor.execute("""
         SELECT 
-            all_names.name,
+            ac.name,
             latest.response as latest_response,
             latest.date as last_called_date,
             COALESCE(dnp_counts.dnp_count, 0) as dnp_count
-        FROM (
-            -- Get unique names from both tables
-            SELECT DISTINCT name FROM contacts
-            UNION
-            SELECT DISTINCT name FROM calls
-        ) all_names
+        FROM all_contacts ac
         LEFT JOIN (
             -- Get the latest call for each contact
             SELECT 
@@ -428,18 +464,18 @@ def get_all_contacts_summary(filters: list = None) -> list:
                 date,
                 ROW_NUMBER() OVER (PARTITION BY name ORDER BY date DESC, created_at DESC) as rn
             FROM calls
-        ) latest ON all_names.name = latest.name AND latest.rn = 1
+        ) latest ON ac.name = latest.name AND latest.rn = 1
         LEFT JOIN (
             -- Count total DNP calls for each contact
             SELECT name, COUNT(*) as dnp_count
             FROM calls
             WHERE response = 'DNP'
             GROUP BY name
-        ) dnp_counts ON all_names.name = dnp_counts.name
+        ) dnp_counts ON ac.name = dnp_counts.name
         ORDER BY 
             CASE WHEN latest.response IS NULL THEN 1 ELSE 0 END,
             latest.date DESC,
-            all_names.name ASC
+            ac.name ASC
     """)
     
     rows = cursor.fetchall()

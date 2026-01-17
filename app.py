@@ -225,7 +225,7 @@ def add_contact():
 
 @app.route("/delete-contact", methods=["POST"])
 def delete_contact():
-    """Delete a contact."""
+    """Delete a contact from today's list."""
     data = request.get_json()
     contact_id = data.get("contact_id")
     
@@ -238,6 +238,22 @@ def delete_contact():
         return jsonify({"success": True})
     
     return jsonify({"error": "Contact not found"}), 404
+
+
+@app.route("/delete-contact-permanent", methods=["POST"])
+def delete_contact_permanent():
+    """Permanently delete a contact from all records."""
+    data = request.get_json()
+    name = data.get("name")
+    
+    if not name:
+        return jsonify({"error": "Contact name is required"}), 400
+    
+    try:
+        database.delete_contact_permanent(name)
+        return jsonify({"success": True, "message": f"Contact '{name}' permanently deleted"})
+    except Exception as e:
+        return jsonify({"error": f"Failed to delete: {str(e)}"}), 500
 
 
 @app.route("/summary")
