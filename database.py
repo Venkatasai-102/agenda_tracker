@@ -92,9 +92,16 @@ def init_db():
         CREATE TABLE IF NOT EXISTS all_contacts (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL UNIQUE,
-            first_added TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            first_added TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            dnp_count INTEGER DEFAULT 0
         )
     """)
+    
+    # Migration: Add dnp_count column if it doesn't exist
+    try:
+        cursor.execute("ALTER TABLE all_contacts ADD COLUMN dnp_count INTEGER DEFAULT 0")
+    except:
+        pass  # Column already exists
     
     # Migration: Add date column if it doesn't exist (for existing databases)
     try:
@@ -154,6 +161,19 @@ def add_call(name: str, response: str, call_date: Optional[str] = None) -> int:
         INSERT INTO calls (name, response, date) VALUES (?, ?, ?)
     """, (name, response, call_date))
     call_id = cursor.lastrowid
+    
+    # Update DNP count in all_contacts
+    if response == 'DNP':
+        # Increment DNP count
+        cursor.execute("""
+            UPDATE all_contacts SET dnp_count = dnp_count + 1 WHERE name = ?
+        """, (name,))
+    else:
+        # Reset DNP count to 0 when response is not DNP
+        cursor.execute("""
+            UPDATE all_contacts SET dnp_count = 0 WHERE name = ?
+        """, (name,))
+    
     conn.commit()
     return call_id
 
@@ -429,8 +449,29 @@ def update_call(call_id: int, response: str) -> bool:
     """Update the response of an existing call."""
     conn = get_connection()
     cursor = conn.cursor()
+    
+    # Get the contact name and old response before updating
+    cursor.execute("SELECT name, response FROM calls WHERE id = ?", (call_id,))
+    row = cursor.fetchone()
+    if not row:
+        return False
+    
+    name = row['name']
+    old_response = row['response']
+    
+    # Update the call response
     cursor.execute("UPDATE calls SET response = ? WHERE id = ?", (response, call_id))
     updated = cursor.rowcount > 0
+    
+    if updated:
+        # Update DNP count based on the change
+        if old_response == 'DNP' and response != 'DNP':
+            # Changed from DNP to something else - reset DNP count to 0
+            cursor.execute("UPDATE all_contacts SET dnp_count = 0 WHERE name = ?", (name,))
+        elif old_response != 'DNP' and response == 'DNP':
+            # Changed from non-DNP to DNP - increment DNP count
+            cursor.execute("UPDATE all_contacts SET dnp_count = dnp_count + 1 WHERE name = ?", (name,))
+    
     conn.commit()
     return updated
 
@@ -448,13 +489,13 @@ def get_all_contacts_summary(filters: list = None) -> list:
     cursor = conn.cursor()
     
     # Get all contacts from the permanent all_contacts table
-    # with their latest call info and DNP count
+    # with their latest call info and DNP count (stored in all_contacts)
     cursor.execute("""
         SELECT 
             ac.name,
             latest.response as latest_response,
             latest.date as last_called_date,
-            COALESCE(dnp_counts.dnp_count, 0) as dnp_count
+            COALESCE(ac.dnp_count, 0) as dnp_count
         FROM all_contacts ac
         LEFT JOIN (
             -- Get the latest call for each contact
@@ -465,13 +506,6 @@ def get_all_contacts_summary(filters: list = None) -> list:
                 ROW_NUMBER() OVER (PARTITION BY name ORDER BY date DESC, created_at DESC) as rn
             FROM calls
         ) latest ON ac.name = latest.name AND latest.rn = 1
-        LEFT JOIN (
-            -- Count total DNP calls for each contact
-            SELECT name, COUNT(*) as dnp_count
-            FROM calls
-            WHERE response = 'DNP'
-            GROUP BY name
-        ) dnp_counts ON ac.name = dnp_counts.name
         ORDER BY 
             CASE WHEN latest.response IS NULL THEN 1 ELSE 0 END,
             latest.date DESC,
