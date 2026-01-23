@@ -767,21 +767,40 @@ section h2 {
 }
 
 
-/* Message Display */
+/* Message Display - Toast Popup */
 .message-display {
-    padding: 1.25rem;
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 9999;
+    padding: 1.25rem 2rem;
     border-radius: var(--radius-lg);
     text-align: center;
-    margin-bottom: 1.5rem;
-    animation: slideIn 0.3s ease;
+    animation: toastSlideIn 0.4s ease;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 0.75rem;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    max-width: 90%;
+    min-width: 300px;
+    backdrop-filter: blur(10px);
 }
 
 .message-display.hidden {
     display: none;
+}
+
+@keyframes toastSlideIn {
+    from {
+        opacity: 0;
+        transform: translateX(-50%) translateY(-30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+    }
 }
 
 .message-display.success {
@@ -806,29 +825,18 @@ section h2 {
 
 .message-display.rampage {
     background: var(--gradient-rampage);
-    border: 1px solid rgba(167, 139, 250, 0.5);
-    animation: pulse 0.5s ease infinite alternate;
+    border: 2px solid rgba(167, 139, 250, 0.6);
+    animation: toastSlideIn 0.4s ease, rampagePulse 0.5s ease infinite alternate;
 }
 
 .message-display.error {
-    background: linear-gradient(135deg, rgba(239, 68, 68, 0.2) 0%, rgba(220, 38, 38, 0.2) 100%);
-    border: 1px solid rgba(239, 68, 68, 0.3);
+    background: linear-gradient(135deg, rgba(239, 68, 68, 0.3) 0%, rgba(220, 38, 38, 0.3) 100%);
+    border: 1px solid rgba(239, 68, 68, 0.5);
 }
 
-@keyframes pulse {
-    from { transform: scale(1); }
-    to { transform: scale(1.02); }
-}
-
-@keyframes slideIn {
-    from {
-        opacity: 0;
-        transform: translateY(-10px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
+@keyframes rampagePulse {
+    from { box-shadow: 0 8px 32px rgba(167, 139, 250, 0.4); }
+    to { box-shadow: 0 8px 48px rgba(167, 139, 250, 0.7); }
 }
 
 .message-emoji {
